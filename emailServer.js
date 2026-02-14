@@ -17,13 +17,18 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Configurar transporter do Gmail
+// Configurar transporter (Brevo SMTP ou Gmail)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: false, // true para porta 465, false para 587 (STARTTLS)
   auth: {
-    user: process.env.GMAIL_EMAIL,
-    pass: process.env.GMAIL_PASSWORD,
+    user: process.env.SMTP_USER || process.env.GMAIL_EMAIL,
+    pass: process.env.SMTP_PASS || process.env.GMAIL_PASSWORD,
   },
+  tls: {
+    rejectUnauthorized: false // Para desenvolvimento
+  }
 });
 
 // Verificar conexão ao iniciar
