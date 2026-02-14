@@ -6,7 +6,6 @@
  */
 
 const express = require('express');
-const nodemailer = require('nodemailer');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -17,28 +16,50 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Configurar transporter (Brevo SMTP ou Gmail)
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false, // true para porta 465, false para 587 (STARTTLS)
-  auth: {
-    user: process.env.SMTP_USER || process.env.GMAIL_EMAIL,
-    pass: process.env.SMTP_PASS || process.env.GMAIL_PASSWORD,
-  },
-  tls: {
-    rejectUnauthorized: false // Para desenvolvimento
-  }
-});
+// Brevo API Configuration
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
-// Verificar conexão ao iniciar
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Erro ao conectar com Gmail:', error);
-  } else {
-    console.log('✅ Servidor pronto para enviar emails!');
+// Função para enviar email via Brevo API
+async function sendEmailViaBrevo(to, subject, htmlContent, senderName = 'ExtraJá') {
+  try {
+    const response = await fetch(BREVO_API_URL, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'api-key': BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: {
+          name: senderName,
+          email: process.env.GMAIL_EMAIL || 'extraja857@gmail.com',
+        },
+        to: [{ email: to }],
+        subject: subject,
+        htmlContent: htmlContent,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Erro ao enviar email');
+    }
+
+    return { success: true, messageId: data.messageId };
+  } catch (error) {
+    console.error('❌ Erro ao enviar email via Brevo:', error);
+    throw error;
   }
-});
+}
+
+// Verificar configuração ao iniciar
+if (BREVO_API_KEY) {
+  console.log('✅ Servidor pronto para enviar emails via Brevo API!');
+} else {
+  console.error('❌ BREVO_API_KEY não configurada!');
+}
 
 /**
  * Endpoint para enviar código de verificação
@@ -182,15 +203,21 @@ app.post('/send-verification', async (req, res) => {
     `,
   };
 
-  // Enviar email
+  // Enviar email via Brevo API
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Email enviado:', info.messageId);
+    const result = await sendEmailViaBrevo(
+      email,
+      `🔐 Código de Verificação - ExtraJá`,
+      mailOptions.html,
+      'ExtraJá'
+    );
+
+    console.log('✅ Email enviado:', result.messageId);
 
     res.json({
       success: true,
       message: 'Email enviado com sucesso',
-      messageId: info.messageId,
+      messageId: result.messageId,
     });
   } catch (error) {
     console.error('❌ Erro ao enviar email:', error);
@@ -288,15 +315,21 @@ app.post('/send-notification', async (req, res) => {
     `,
   };
 
-  // Enviar email
+  // Enviar email via Brevo API
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Notificação enviada por email:', info.messageId);
+    const result = await sendEmailViaBrevo(
+      email,
+      `${emoji} ${title} - ExtraJá`,
+      mailOptions.html,
+      'ExtraJá'
+    );
+
+    console.log('✅ Notificação enviada por email:', result.messageId);
 
     res.json({
       success: true,
       message: 'Notificação enviada por email',
-      messageId: info.messageId,
+      messageId: result.messageId,
     });
   } catch (error) {
     console.error('❌ Erro ao enviar notificação:', error);
